@@ -7,11 +7,15 @@ const userSchema = new Schema(
     username: {
       type: String,
       required: true,
+      lowercase: true,
+      trim: true,
+      unique: true,
     },
     email: {
       type: String,
       required: true,
       lowercase: true,
+      trim: true,
       unique: true,
     },
     password: {
@@ -56,7 +60,12 @@ userSchema.methods.comparePassword = async (newPassword) => {
   return isValidPass;
 };
 
-userSchema.methods.emailVerification = async () => {};
+userSchema.methods.generateRandomHashedTokens = () => {
+  const token = crypto.randomBytes(32).toString('hex');
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+  const tokenExpiry = Date.now() + 1000 * 60 * 15; //15 min
+  return { token, hashedToken, tokenExpiry };
+};
 
 const User = model('User', userSchema);
 
