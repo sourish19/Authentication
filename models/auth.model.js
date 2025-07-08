@@ -36,13 +36,15 @@ const userSchema = new Schema(
   }
 );
 
-const User = model('user', userSchema);
-
-userSchema.pre('save', async (next) => {
+userSchema.pre('save', async function (next) {
   const user = this;
+  console.log(user);
+
   if (!user.isModified('password')) return next();
   try {
     const hashedPassword = await bcrypt.hash(user.password, 10);
+    console.log('hashed - ', hashedPassword);
+
     user.password = hashedPassword;
     next();
   } catch (error) {
@@ -55,5 +57,7 @@ userSchema.methods.comparePassword = async (newPassword) => {
   const isValidPass = await bcrypt.compare(newPassword, this.password);
   return isValidPass;
 };
+
+const User = model('User', userSchema);
 
 export default User;

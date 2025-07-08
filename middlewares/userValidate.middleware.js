@@ -4,7 +4,7 @@ import ApiError from '../utils/apiError.utils.js';
 const validate = (req, res, next) => {
   const errors = validationResult(req);
 
-  if (!errors.isEmpty()) return next();
+  if (errors.isEmpty()) return next();
 
   const formatedErrors = {};
 
@@ -14,6 +14,8 @@ const validate = (req, res, next) => {
     }
     formatedErrors[e.path].push(e.msg);
   });
+
+  console.log('This is formated Errors', formatedErrors);
 
   throw new ApiError(formatedErrors, 'Received data is not valid', 422);
 };

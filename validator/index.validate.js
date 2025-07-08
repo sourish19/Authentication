@@ -3,22 +3,21 @@ import { body } from 'express-validator';
 const userValidation = () => {
   return [
     body('username')
-      .notEmpty()
-      .withMessage('UserName is required')
       .trim()
-      .toLowerCase(),
+      .toLowerCase()
+      .notEmpty() // .notEmpty() Checks if there is any value & .isEmpty() checks if the fiels is empty
+      .withMessage('UserName is required'),
     body('email')
-      .isEmpty()
+      .trim()
+      .notEmpty()
       .withMessage('Email is required')
       .isEmail()
-      .normalizeEmail()
-      .trim()
-      .withMessage('Not a valid e-mail address'),
+      .withMessage('not a email'),
     body('password')
-      .isEmpty()
+      .notEmpty()
       .withMessage('Password is required')
       .isLength({ min: 5 })
-      .withMessage('Password must be at least 8 characters long'),
+      .withMessage('Password must be at least 5 characters long'),
   ];
 };
 
