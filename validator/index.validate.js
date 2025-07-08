@@ -12,6 +12,7 @@ const userValidation = () => {
       .notEmpty()
       .withMessage('Email is required')
       .isEmail()
+      .normalizeEmail()
       .withMessage('not a email'),
     body('password')
       .notEmpty()

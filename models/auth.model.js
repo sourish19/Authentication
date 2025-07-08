@@ -1,5 +1,6 @@
 import { Schema, model } from 'mongoose';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 
 const userSchema = new Schema(
   {
@@ -38,13 +39,10 @@ const userSchema = new Schema(
 
 userSchema.pre('save', async function (next) {
   const user = this;
-  console.log(user);
-
   if (!user.isModified('password')) return next();
   try {
     const hashedPassword = await bcrypt.hash(user.password, 10);
-    console.log('hashed - ', hashedPassword);
-
+    // console.log('hashed - ', hashedPassword);
     user.password = hashedPassword;
     next();
   } catch (error) {
@@ -57,6 +55,8 @@ userSchema.methods.comparePassword = async (newPassword) => {
   const isValidPass = await bcrypt.compare(newPassword, this.password);
   return isValidPass;
 };
+
+userSchema.methods.emailVerification = async () => {};
 
 const User = model('User', userSchema);
 
