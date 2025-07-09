@@ -76,7 +76,7 @@ userSchema.methods.generateRandomHashedTokens = () => {
   return { token, hashedToken, tokenExpiry };
 };
 
-userSchema.methods.generateAccessToken = () => {
+userSchema.methods.generateAccessToken = async function () {
   try {
     const user = this;
 
@@ -115,9 +115,7 @@ userSchema.methods.generateRefreshTokens = async function () {
 
     user.refreshToken = hashedRefreshToken;
 
-    await user.save();
-
-    return;
+    return refreshToken;
   } catch (error) {
     throw new ApiError(error, 'Error creating Refresh Token', 500);
   }

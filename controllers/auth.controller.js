@@ -1,9 +1,11 @@
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 
 import User from '../models/auth.model.js';
 import ApiResponse from '../utils/apiResponse.utils.js';
 import ApiError from '../utils/apiError.utils.js';
 import asyncHandler from '../utils/asyncHandler.utils.js';
+import { REFRESH_TOKEN } from '../utils/constants.utils.js';
 import {
   sendEmail,
   emailVerificationMailgenContent,
@@ -110,8 +112,10 @@ const loginUser = asyncHandler(async (req, res) => {
       422
     );
 
-  await user.generateRefreshToken();
-  const accessToken = user.generateAccessToken();
+  const refreshToken = await user.generateRefreshToken();
+  const accessToken = await user.generateAccessToken();
+
+  await user.save();
 
   const logedInUser = await User.findById(user._id).select(
     '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry'
@@ -124,12 +128,29 @@ const loginUser = asyncHandler(async (req, res) => {
     maxAge: 15 * 60 * 1000,
   };
 
-  res.cookie('accTkn', accessToken, cookieOptions).json(
+  res.cookie('accessTokn', accessToken, cookieOptions);
+  res.cookie('refreshToken', refreshToken, cookieOptions);
+
+  res.status(200).json(
     new ApiResponse(200, 'User Logedin Successfully', {
       username: logedInUser.username,
       email: logedInUser.email,
     })
   );
+});
+
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  const refreshToken = req.cookie?.refreshToken;
+
+  if (!refreshToken) throw new ApiError([], 'Unauthorized request', 401);
+
+  try {
+    const decode = jwt.verify(refreshToken, REFRESH_TOKEN.secret);
+
+    if (!decode) throw new ApiError([], 'Unauthorized request', 401);
+  } catch (error) {
+    throw new ApiError(error, error?.message || 'Invalid Refresh Token', 401);
+  }
 });
 
 const logoutUser = asyncHandler(async (req, res) => {});
