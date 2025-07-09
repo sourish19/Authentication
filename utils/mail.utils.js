@@ -1,6 +1,8 @@
 import nodemailer from 'nodemailer';
 import Mailgen from 'mailgen';
 
+import { EMAIL } from './constants.utils.js';
+
 const mailGenerator = new Mailgen({
   theme: 'default',
   product: {
@@ -13,12 +15,12 @@ const mailGenerator = new Mailgen({
 });
 
 const transporter = nodemailer.createTransport({
-  host: process.env.MAILTRAP_HOST,
-  port: parseInt(process.env.MAILTRAP_PORT, 10),
+  host: EMAIL.emailHost,
+  port: parseInt(EMAIL.emailPort, 10),
   secure: false,
   auth: {
-    user: process.env.MAILTRAP_USERNAME,
-    pass: process.env.MAILTRAP_PASSWORD,
+    user: EMAIL.authUser,
+    pass: EMAIL.authPass,
   },
 });
 
@@ -28,7 +30,7 @@ export const sendEmail = async (options) => {
     const emailText = mailGenerator.generatePlaintext(options.mailgenContent);
 
     const mail = {
-      from: process.env.MAILTRAP_MAIL || 'mail@freeapi.app',
+      from: EMAIL.emailFrom || 'mail@freeapi.app',
       to: options.email,
       subject: options.subject,
       text: emailText,

@@ -1,6 +1,10 @@
 import { Schema, model } from 'mongoose';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+
+import { REFRESH_TOKEN, ACCESS_TOKEN } from '../utils/constants.utils.js';
+import ApiError from '../utils/apiError.utils.js';
 
 const userSchema = new Schema(
   {
@@ -55,9 +59,14 @@ userSchema.pre('save', async function (next) {
   }
 });
 
-userSchema.methods.comparePassword = async (newPassword) => {
-  const isValidPass = await bcrypt.compare(newPassword, this.password);
-  return isValidPass;
+userSchema.methods.comparePassword = async function (newPassword) {
+  try {
+    const user = this;
+    const isValidPass = await bcrypt.compare(newPassword, user.password);
+    return isValidPass;
+  } catch (error) {
+    throw new ApiError(error, 'Error comparing passwords', 500);
+  }
 };
 
 userSchema.methods.generateRandomHashedTokens = () => {
@@ -65,6 +74,53 @@ userSchema.methods.generateRandomHashedTokens = () => {
   const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
   const tokenExpiry = Date.now() + 1000 * 60 * 15; //15 min
   return { token, hashedToken, tokenExpiry };
+};
+
+userSchema.methods.generateAccessToken = () => {
+  try {
+    const user = this;
+
+    const accessToken = jwt.sign(
+      {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+      },
+      ACCESS_TOKEN.secret,
+      { expiresIn: ACCESS_TOKEN.expiry }
+    );
+
+    return accessToken;
+  } catch (error) {
+    throw new ApiError(error, 'Error creating Access Token Token', 500);
+  }
+};
+
+userSchema.methods.generateRefreshTokens = async function () {
+  try {
+    const user = this;
+
+    const refreshToken = jwt.sign(
+      {
+        id: user._id,
+      },
+      REFRESH_TOKEN.secret,
+      { expiresIn: REFRESH_TOKEN.expiry }
+    );
+
+    const hashedRefreshToken = crypto
+      .createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
+
+    user.refreshToken = hashedRefreshToken;
+
+    await user.save();
+
+    return;
+  } catch (error) {
+    throw new ApiError(error, 'Error creating Refresh Token', 500);
+  }
 };
 
 const User = model('User', userSchema);

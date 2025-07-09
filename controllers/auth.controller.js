@@ -93,6 +93,45 @@ const verifyEmail = asyncHandler(async (req, res) => {
   );
 });
 
-const loginUser = () => {};
+const loginUser = asyncHandler(async (req, res) => {
+  const { username, email, password } = req.body;
 
-export { registerUser, verifyEmail };
+  const user = await User.findOne({ $or: [{ username }, { email }] });
+
+  if (!user)
+    throw new ApiError([{ username, email }], 'User not registered', 422);
+
+  const validPassword = await user.comparePassword(password);
+
+  if (!validPassword)
+    throw new ApiError(
+      [{ username, email }],
+      `Password & email dosen't match `,
+      422
+    );
+
+  await user.generateRefreshToken();
+  const accessToken = user.generateAccessToken();
+
+  const logedInUser = await User.findById(user._id).select(
+    '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry'
+  );
+
+  const cookieOptions = {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Strict',
+    maxAge: 15 * 60 * 1000,
+  };
+
+  res.cookie('accTkn', accessToken, cookieOptions).json(
+    new ApiResponse(200, 'User Logedin Successfully', {
+      username: logedInUser.username,
+      email: logedInUser.email,
+    })
+  );
+});
+
+const logoutUser = asyncHandler(async (req, res) => {});
+
+export { registerUser, verifyEmail, loginUser, logoutUser };
