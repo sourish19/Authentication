@@ -50,7 +50,6 @@ userSchema.pre('save', async function (next) {
   if (!user.isModified('password')) return next();
   try {
     const hashedPassword = await bcrypt.hash(user.password, 10);
-    // console.log('hashed - ', hashedPassword);
     user.password = hashedPassword;
     next();
   } catch (error) {
@@ -108,10 +107,7 @@ userSchema.methods.generateRefreshTokens = async function () {
       { expiresIn: REFRESH_TOKEN.expiry }
     );
 
-    const hashedRefreshToken = crypto
-      .createHash('sha256')
-      .update(refreshToken)
-      .digest('hex');
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
 
     user.refreshToken = hashedRefreshToken;
 

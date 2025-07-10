@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
 import User from '../models/auth.model.js';
@@ -140,19 +140,69 @@ const loginUser = asyncHandler(async (req, res) => {
 });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
-  const refreshToken = req.cookie?.refreshToken;
+  const incommingRefreshToken = req.cookies?.refreshToken;
 
-  if (!refreshToken) throw new ApiError([], 'Unauthorized request', 401);
+  if (!incommingRefreshToken)
+    throw new ApiError(
+      error || [],
+      'Unauthorized request - User not logedin',
+      401
+    );
 
   try {
-    const decode = jwt.verify(refreshToken, REFRESH_TOKEN.secret);
+    const decode = jwt.verify(incommingRefreshToken, REFRESH_TOKEN.secret);
 
     if (!decode) throw new ApiError([], 'Unauthorized request', 401);
+
+    const user = await User.findById(decode.id);
+
+    if (!user)
+      throw new ApiError(
+        [],
+        'Unauthorized request - Invalid Refresh Token',
+        401
+      );
+
+    const hashedRefToken = bcrypt.compare(decode, user?.refreshToken);
+
+    if (!hashedRefToken)
+      throw new ApiError(
+        error || [],
+        error?.message || 'Invalid Refresh Token',
+        401
+      );
+
+    const refreshToken = await user.generateRefreshToken();
+    const accessToken = await user.generateAccessToken();
+
+    await user.save();
+
+    const cookieOptions = {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Strict',
+      maxAge: 15 * 60 * 1000,
+    };
+
+    res.cookie('accessToken', accessToken, cookieOptions);
+    res.cookie('refreshToken', refreshToken, cookieOptions);
+
+    res
+      .status(200)
+      .json(
+        new ApiResponse(200, 'Successfully generated Refresh & Access token')
+      );
   } catch (error) {
-    throw new ApiError(error, error?.message || 'Invalid Refresh Token', 401);
+    throw new ApiError(
+      error || [],
+      error?.message || 'Expired Refresh Token',
+      401
+    );
   }
 });
 
 const logoutUser = asyncHandler(async (req, res) => {});
 
-export { registerUser, verifyEmail, loginUser, logoutUser };
+export { registerUser, verifyEmail, loginUser, logoutUser, refreshAccessToken };
+
+//https://dev.to/smitterhane/a-meticulous-jwt-api-authentication-guide-youve-been-looking-for-47dg#create-authentication-middleware
