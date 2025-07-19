@@ -57,4 +57,20 @@ const userPasswordValidation = () => {
   ];
 };
 
-export { userRegistrationValidation, userPasswordValidation };
+const userEmailValidation = () => {
+  return [
+    body('email')
+      .trim()
+      .notEmpty()
+      .withMessage('Email is required')
+      .isEmail()
+      .normalizeEmail()
+      .withMessage('not a email'),
+  ];
+};
+
+export {
+  userRegistrationValidation,
+  userPasswordValidation,
+  userEmailValidation,
+};

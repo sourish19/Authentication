@@ -6,12 +6,15 @@ import {
   refreshAccessToken,
   logoutUser,
   userProfile,
-  resetPassword,
   changeCurrentPassword,
+  forgotPassword,
+  resetPassword,
+  resendEmailVerification,
 } from '../controllers/auth.controller.js';
 import {
   userRegistrationValidation,
   userPasswordValidation,
+  userEmailValidation,
 } from '../validator/index.validate.js';
 import validate from '../middlewares/userValidate.middleware.js';
 import isLogedIn from '../middlewares/isLogedIn.middleware.js';
@@ -26,9 +29,13 @@ router
 router.route('/verify-email/:token').get(verifyEmail);
 router.route('/login').post(userRegistrationValidation(), validate, loginUser);
 router.route('/refresh-access-token').patch(refreshAccessToken);
+router.route('/forgot-password').get(forgotPassword);
 router
   .route('/reset-password')
   .patch(isLogedIn, isEmailVerified, resetPassword);
+router
+  .route('/resend-email-verification')
+  .patch(userEmailValidation(), validate, resendEmailVerification);
 
 // Secure Routes
 router.route('/logout').patch(isLogedIn, logoutUser);

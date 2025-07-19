@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 import User from '../models/auth.model.js';
 import ApiResponse from '../utils/apiResponse.utils.js';
@@ -84,7 +85,7 @@ const registerUser = asyncHandler(async (req, res) => {
 const verifyEmail = asyncHandler(async (req, res) => {
   const { token } = req.params;
 
-  if (!token) throw new ApiError([], 'Token is not there!', 400);
+  if (!token) throw new ApiError([], 'Token not found!', 400);
 
   const hashedToken = crypto.createHash('sha256').update(token).digest('hex'); // same token generates same hash
 
@@ -96,16 +97,19 @@ const verifyEmail = asyncHandler(async (req, res) => {
     '-password -refreshToken -resetPasswordToken -resetPasswordTokenExpiry'
   );
 
-  if (!user) throw new ApiError([], 'Token is invalid!', 400);
+  if (!user) throw new ApiError([], 'User not found!', 400);
+
+  if (user.isEmailValid)
+    throw new ApiError([], 'Email is already verified!', 200);
 
   user.isEmailValid = true;
   user.emailVerificationToken = undefined;
   user.emailVerificationTokenExpiry = undefined;
 
-  await user.save();
+  await user.save({ validateBeforeSave: false });
 
   const createdUser = await User.findById(user._id).select(
-    '-password -refreshToken '
+    '-password -refreshToken -resetPasswordToken -resetPasswordTokenExpiry -emailVerificationToken -emailVerificationTokenExpiry'
   );
 
   return res.status(200).json(
@@ -272,8 +276,6 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 const forgotPassword = asyncHandler(async (req, res) => {
   const decodedUser = req.user;
 
-  if (!decodedUser) throw new ApiError([], 'User is not there', 401);
-
   const user = User.findById(decodedUser.id).select(
     '-refreshToken -emailVerificationToken -emailVerificationTokenExpiry'
   );
@@ -282,6 +284,40 @@ const forgotPassword = asyncHandler(async (req, res) => {
 });
 
 const resetPassword = asyncHandler(async (req, res) => {});
+
+const resendEmailVerification = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  const user = await User.findOne({ email }).select(
+    '-password -refreshToken -resetPasswordToken -resetPasswordTokenExpiry'
+  );
+
+  if (!user) throw new ApiError([], 'User not found', 400);
+
+  if (user.isEmailValid) throw new ApiError([], 'User not found', 400);
+
+  const { token, hashedToken, tokenExpiry } = user.generateRandomHashedTokens();
+
+  user.emailVerificationToken = hashedToken;
+  user.emailVerificationTokenExpiry = tokenExpiry;
+
+  await sendEmail({
+    email: user?.email,
+    subject: 'Please verify your email',
+    mailgenContent: emailVerificationMailgenContent(
+      user?.username,
+      `${process.env.BASE_URL_WSL}user/verify-email/${token}`
+    ),
+  });
+
+  await user.save({ validateModifiedOnly: true });
+
+  return res.status(200).json(
+    new ApiResponse(200, 'Verification Email Sent Successfully', {
+      email: email,
+    })
+  );
+});
 
 export {
   registerUser,
@@ -293,6 +329,7 @@ export {
   resetPassword,
   forgotPassword,
   changeCurrentPassword,
+  resendEmailVerification,
 };
 
 //https://dev.to/smitterhane/a-meticulous-jwt-api-authentication-guide-youve-been-looking-for-47dg#create-authentication-middleware
