@@ -95,7 +95,7 @@ userSchema.methods.generateAccessToken = async function () {
   }
 };
 
-userSchema.methods.generateRefreshTokens = async function () {
+userSchema.methods.generateRefreshToken = async function () {
   try {
     const user = this;
 

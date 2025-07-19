@@ -11,6 +11,25 @@ import {
   emailVerificationMailgenContent,
 } from '../utils/mail.utils.js';
 
+const cookiesOption = {
+  options: {
+    sameSite: 'strict',
+    secure: false,
+    httpOnly: true,
+    path: '/',
+    maxAge: 24 * 60 * 60 * 1000,
+  },
+};
+
+const generateRefreshAccessToken = async (user) => {
+  const refreshToken = await user.generateRefreshToken();
+  const accessToken = await user.generateAccessToken();
+
+  await user.save();
+
+  return { accessToken, refreshToken };
+};
+
 const registerUser = asyncHandler(async (req, res) => {
   const { username, email, password } = req.body;
 
@@ -67,8 +86,9 @@ const verifyEmail = asyncHandler(async (req, res) => {
 
   if (!token) throw new ApiError([], 'Token is not there!', 400);
 
-  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex'); // same token generates same hash
 
+  // Checks both the condition
   const user = await User.findOne({
     emailVerificationToken: hashedToken,
     emailVerificationTokenExpiry: { $gt: Date.now() },
@@ -103,6 +123,9 @@ const loginUser = asyncHandler(async (req, res) => {
   if (!user)
     throw new ApiError([{ username, email }], 'User not registered', 422);
 
+  if (user.refreshToken)
+    throw new ApiError([{ username, email }], 'User already logedin', 422);
+
   const validPassword = await user.comparePassword(password);
 
   if (!validPassword)
@@ -112,31 +135,22 @@ const loginUser = asyncHandler(async (req, res) => {
       422
     );
 
-  const refreshToken = await user.generateRefreshToken();
-  const accessToken = await user.generateAccessToken();
-
-  await user.save();
+  const { accessToken, refreshToken } = await generateRefreshAccessToken(user);
 
   const logedInUser = await User.findById(user._id).select(
     '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry'
   );
 
-  const cookieOptions = {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'Strict',
-    maxAge: 15 * 60 * 1000,
-  };
-
-  res.cookie('accessTokn', accessToken, cookieOptions);
-  res.cookie('refreshToken', refreshToken, cookieOptions);
-
-  res.status(200).json(
-    new ApiResponse(200, 'User Logedin Successfully', {
-      username: logedInUser.username,
-      email: logedInUser.email,
-    })
-  );
+  res
+    .cookie('refreshToken', refreshToken, cookiesOption.options)
+    .cookie('accessToken', accessToken, cookiesOption.options)
+    .status(200)
+    .json(
+      new ApiResponse(200, 'User Logedin Successfully', {
+        username: logedInUser.username,
+        email: logedInUser.email,
+      })
+    );
 });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
@@ -163,7 +177,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         401
       );
 
-    const hashedRefToken = bcrypt.compare(decode, user?.refreshToken);
+    const hashedRefToken = bcrypt.compare(incommingRefreshToken, user?.refreshToken);
 
     if (!hashedRefToken)
       throw new ApiError(
@@ -172,23 +186,14 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         401
       );
 
-    const refreshToken = await user.generateRefreshToken();
-    const accessToken = await user.generateAccessToken();
+    const { accessToken, refreshToken } =
+      await generateRefreshAccessToken(user);
 
-    await user.save();
-
-    const cookieOptions = {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'Strict',
-      maxAge: 15 * 60 * 1000,
-    };
-
-    res.cookie('accessToken', accessToken, cookieOptions);
-    res.cookie('refreshToken', refreshToken, cookieOptions);
 
     res
       .status(200)
+      .cookie('accessToken', accessToken, cookiesOption.options)
+      .cookie('refreshToken', refreshToken, cookiesOption.options)
       .json(
         new ApiResponse(200, 'Successfully generated Refresh & Access token')
       );
@@ -201,8 +206,39 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   }
 });
 
-const logoutUser = asyncHandler(async (req, res) => {});
+const logoutUser = asyncHandler(async (req, res) => {
+  const user = req.user;
 
-export { registerUser, verifyEmail, loginUser, logoutUser, refreshAccessToken };
+  if (!user)
+    throw new ApiError(
+      error || [],
+      'Unauthorized request - User not logedin',
+      401
+    );
+
+  const findUser = await User.findById(user.id);
+
+  if (!findUser)
+    throw new ApiError(
+      error || [],
+      'Unauthorized request - User not logedin',
+      401
+    );
+
+  findUser.refreshToken = undefined;
+
+  await findUser.save();
+
+  res.clearCookie('accessToken', cookiesOption.options);
+  res.clearCookie('refreshToken', cookiesOption.options);
+
+  res.status(200).json(new ApiResponse(200, 'User Logout successfully'));
+});
+
+const userProfile = asyncHandler(async(req,res)=>{
+  
+})
+
+export { registerUser, verifyEmail, loginUser, logoutUser, refreshAccessToken, userProfile };
 
 //https://dev.to/smitterhane/a-meticulous-jwt-api-authentication-guide-youve-been-looking-for-47dg#create-authentication-middleware

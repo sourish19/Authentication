@@ -1,6 +1,6 @@
 const customErrorResponse = (err, req, res, next) => {
   if (err.statusCode) {
-    // This is your ApiError
+    // This is ApiError
     return res.status(err.statusCode).json({
       error: err.error,
       message: err.message,
