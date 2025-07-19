@@ -1,6 +1,7 @@
 import { body } from 'express-validator';
+import ApiError from '../utils/apiError.utils.js';
 
-const userValidation = () => {
+const userRegistrationValidation = () => {
   return [
     body('username')
       .trim()
@@ -15,6 +16,7 @@ const userValidation = () => {
       .normalizeEmail()
       .withMessage('not a email'),
     body('password')
+      .trim()
       .notEmpty()
       .withMessage('Password is required')
       .isLength({ min: 5 })
@@ -22,4 +24,37 @@ const userValidation = () => {
   ];
 };
 
-export default userValidation;
+const userPasswordValidation = () => {
+  return [
+    body('old_password')
+      .trim()
+      .notEmpty()
+      .withMessage('Old Password is required'),
+    body('new_password')
+      .trim()
+      .notEmpty()
+      .withMessage('New Password is required')
+      .isLength({ min: 5 })
+      .withMessage('New Password must be at least 5 characters long')
+      .custom((value, { req }) => {
+        if (value === req.body.old_password)
+          throw new ApiError(
+            [],
+            'New password cannot be same as old password',
+            400
+          );
+        return true;
+      }),
+    body('confirm_new_password').custom((value, { req }) => {
+      if (value !== req.body.new_password)
+        throw new ApiError(
+          [],
+          'Confirm password does not match new password',
+          400
+        );
+      return true;
+    }),
+  ];
+};
+
+export { userRegistrationValidation, userPasswordValidation };

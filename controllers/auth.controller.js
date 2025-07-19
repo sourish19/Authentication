@@ -62,7 +62,7 @@ const registerUser = asyncHandler(async (req, res) => {
   await newUser.save();
 
   const createdUser = await User.findById(newUser._id).select(
-    '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry'
+    '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry -resetPasswordToken -resetPasswordTokenExpiry'
   );
 
   if (!createdUser)
@@ -92,7 +92,9 @@ const verifyEmail = asyncHandler(async (req, res) => {
   const user = await User.findOne({
     emailVerificationToken: hashedToken,
     emailVerificationTokenExpiry: { $gt: Date.now() },
-  });
+  }).select(
+    '-password -refreshToken -resetPasswordToken -resetPasswordTokenExpiry'
+  );
 
   if (!user) throw new ApiError([], 'Token is invalid!', 400);
 
@@ -118,7 +120,9 @@ const verifyEmail = asyncHandler(async (req, res) => {
 const loginUser = asyncHandler(async (req, res) => {
   const { username, email, password } = req.body;
 
-  const user = await User.findOne({ $or: [{ username }, { email }] });
+  const user = await User.findOne({ $or: [{ username }, { email }] }).select(
+    '-isEmailValid -emailVerificationToken -emailVerificationTokenExpiry -resetPasswordToken -resetPasswordTokenExpiry'
+  );
 
   if (!user)
     throw new ApiError([{ username, email }], 'User not registered', 422);
@@ -138,7 +142,7 @@ const loginUser = asyncHandler(async (req, res) => {
   const { accessToken, refreshToken } = await generateRefreshAccessToken(user);
 
   const logedInUser = await User.findById(user._id).select(
-    '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry'
+    '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry -resetPasswordToken -resetPasswordTokenExpiry'
   );
 
   res
@@ -157,11 +161,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   const incommingRefreshToken = req.cookies?.refreshToken;
 
   if (!incommingRefreshToken)
-    throw new ApiError(
-      error || [],
-      'Unauthorized request - User not logedin',
-      401
-    );
+    throw new ApiError([], 'Unauthorized request - User not logedin', 401);
 
   try {
     const decode = jwt.verify(incommingRefreshToken, REFRESH_TOKEN.secret);
@@ -182,12 +182,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       user?.refreshToken
     );
 
-    if (!hashedRefToken)
-      throw new ApiError(
-        error || [],
-        error?.message || 'Invalid Refresh Token',
-        401
-      );
+    if (!hashedRefToken) throw new ApiError([], 'Invalid Refresh Token', 401);
 
     const { accessToken, refreshToken } =
       await generateRefreshAccessToken(user);
@@ -211,21 +206,12 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 const logoutUser = asyncHandler(async (req, res) => {
   const user = req.user;
 
-  if (!user)
-    throw new ApiError(
-      error || [],
-      'Unauthorized request - User not logedin',
-      401
-    );
-
-  const findUser = await User.findById(user.id);
+  const findUser = await User.findById(user.id).select(
+    '-password -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry -resetPasswordToken -resetPasswordTokenExpiry'
+  );
 
   if (!findUser)
-    throw new ApiError(
-      error || [],
-      'Unauthorized request - User not logedin',
-      401
-    );
+    throw new ApiError([], 'Unauthorized request - User not logedin', 401);
 
   findUser.refreshToken = undefined;
 
@@ -240,11 +226,8 @@ const logoutUser = asyncHandler(async (req, res) => {
 const userProfile = asyncHandler(async (req, res) => {
   const user = req.user;
 
-  if (!user)
-    throw new ApiError(error || [], error?.message || 'User not logedin', 401);
-
   const findUser = await User.findById(user.id).select(
-    '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry'
+    '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry -resetPasswordToken -resetPasswordTokenExpiry'
   );
 
   if (!findUser)
@@ -258,7 +241,47 @@ const userProfile = asyncHandler(async (req, res) => {
   );
 });
 
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  const decodedUser = req.user;
 
+  const { old_password, new_password, confirm_new_password } = req.body;
+
+  const user = await User.findById(decodedUser.id).select(
+    '-refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry -resetPasswordToken -resetPasswordTokenExpiry'
+  );
+
+  if (!user) throw new ApiError([], 'User not Found', 400);
+
+  const validPassword = await user.comparePassword(old_password);
+
+  console.log(validPassword);
+
+  if (!validPassword) throw new ApiError([], 'Invalid Old Password', 400);
+
+  // assign new password in plain text
+  // We have a pre save method attached to user schema which automatically hashes the password whenever added/modified
+  user.password = confirm_new_password;
+
+  await user.save({ validateBeforeSave: false });
+
+  res
+    .status(201)
+    .json(new ApiResponse(201, 'Password Change Successfully', []));
+});
+
+const forgotPassword = asyncHandler(async (req, res) => {
+  const decodedUser = req.user;
+
+  if (!decodedUser) throw new ApiError([], 'User is not there', 401);
+
+  const user = User.findById(decodedUser.id).select(
+    '-refreshToken -emailVerificationToken -emailVerificationTokenExpiry'
+  );
+
+  if (!user) throw new ApiError([], 'User not found', 401);
+});
+
+const resetPassword = asyncHandler(async (req, res) => {});
 
 export {
   registerUser,
@@ -267,6 +290,20 @@ export {
   logoutUser,
   refreshAccessToken,
   userProfile,
+  resetPassword,
+  forgotPassword,
+  changeCurrentPassword,
 };
 
 //https://dev.to/smitterhane/a-meticulous-jwt-api-authentication-guide-youve-been-looking-for-47dg#create-authentication-middleware
+
+/*
+Check user is logedin or not 
+Check if user email is verified or not 
+-if verified generate hashed resetPasswordToken & Expiry and save in the DB
+  -send the unHashed resetPasswordToken to user  email as link 
+  -When user click it redirect to the required route & get the token 
+  -verify the token & the let user reset the password 
+-if not verified tell user to verify the email first
+
+*/

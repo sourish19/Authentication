@@ -36,6 +36,12 @@ const userSchema = new Schema(
     emailVerificationTokenExpiry: {
       type: String,
     },
+    resetPasswordToken: {
+      type: String,
+    },
+    resetPasswordTokenExpiry: {
+      type: String,
+    },
     refreshToken: {
       type: String,
     },
@@ -60,6 +66,7 @@ userSchema.pre('save', async function (next) {
 
 userSchema.methods.comparePassword = async function (newPassword) {
   try {
+    console.log('Pass-', newPassword);
     const user = this;
     const isValidPass = await bcrypt.compare(newPassword, user.password);
     return isValidPass;

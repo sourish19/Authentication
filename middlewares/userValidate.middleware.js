@@ -15,8 +15,6 @@ const validate = (req, res, next) => {
     formatedErrors[e.path].push(e.msg);
   });
 
-  console.log('This is formated Errors', formatedErrors);
-
   throw new ApiError(formatedErrors, 'Received data is not valid', 422);
 };
 
