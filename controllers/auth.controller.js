@@ -177,7 +177,10 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         401
       );
 
-    const hashedRefToken = bcrypt.compare(incommingRefreshToken, user?.refreshToken);
+    const hashedRefToken = bcrypt.compare(
+      incommingRefreshToken,
+      user?.refreshToken
+    );
 
     if (!hashedRefToken)
       throw new ApiError(
@@ -188,7 +191,6 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
     const { accessToken, refreshToken } =
       await generateRefreshAccessToken(user);
-
 
     res
       .status(200)
@@ -235,10 +237,36 @@ const logoutUser = asyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, 'User Logout successfully'));
 });
 
-const userProfile = asyncHandler(async(req,res)=>{
-  
-})
+const userProfile = asyncHandler(async (req, res) => {
+  const user = req.user;
 
-export { registerUser, verifyEmail, loginUser, logoutUser, refreshAccessToken, userProfile };
+  if (!user)
+    throw new ApiError(error || [], error?.message || 'User not logedin', 401);
+
+  const findUser = await User.findById(user.id).select(
+    '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry'
+  );
+
+  if (!findUser)
+    throw new ApiError(error || [], error?.message || 'User not Found', 401);
+
+  res.status(200).json(
+    new ApiResponse(200, 'User profile', {
+      username: findUser.username,
+      email: findUser.email,
+    })
+  );
+});
+
+
+
+export {
+  registerUser,
+  verifyEmail,
+  loginUser,
+  logoutUser,
+  refreshAccessToken,
+  userProfile,
+};
 
 //https://dev.to/smitterhane/a-meticulous-jwt-api-authentication-guide-youve-been-looking-for-47dg#create-authentication-middleware

@@ -6,8 +6,6 @@ import ApiError from '../utils/apiError.utils.js';
 
 const isLogedIn = asyncHandler(async (req, res, next) => {
   const accessToken = req.cookies?.accessToken;
-  console.log("accessToken - ",accessToken);
-  
 
   if (!accessToken)
     throw new ApiError(
@@ -18,7 +16,6 @@ const isLogedIn = asyncHandler(async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(accessToken, ACCESS_TOKEN.secret);
-    console.log(decoded);
 
     if (!decoded)
       // Client should make a request to /api/v1/users/refresh-token if they have refreshToken present in their cookie
