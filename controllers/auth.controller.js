@@ -10,6 +10,7 @@ import { REFRESH_TOKEN } from '../utils/constants.utils.js';
 import {
   sendEmail,
   emailVerificationMailgenContent,
+  resetPasswordMailgenContent,
 } from '../utils/mail.utils.js';
 
 const cookiesOption = {
@@ -26,7 +27,7 @@ const generateRefreshAccessToken = async (user) => {
   const refreshToken = await user.generateRefreshToken();
   const accessToken = await user.generateAccessToken();
 
-  await user.save();
+  await user.save({ validateBeforeSave: false });
 
   return { accessToken, refreshToken };
 };
@@ -106,6 +107,8 @@ const verifyEmail = asyncHandler(async (req, res) => {
   user.emailVerificationToken = undefined;
   user.emailVerificationTokenExpiry = undefined;
 
+  //   validateBeforeSave: false ➝ Skips validation on required fields like password, email
+  //   Use this when we only want to update non-critical fields like tokens,flags,timestamps
   await user.save({ validateBeforeSave: false });
 
   const createdUser = await User.findById(user._id).select(
@@ -219,7 +222,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 
   findUser.refreshToken = undefined;
 
-  await findUser.save();
+  await findUser.save({ validateBeforeSave: false });
 
   res.clearCookie('accessToken', cookiesOption.options);
   res.clearCookie('refreshToken', cookiesOption.options);
@@ -274,16 +277,69 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 });
 
 const forgotPassword = asyncHandler(async (req, res) => {
-  const decodedUser = req.user;
+  const { email } = req.body;
 
-  const user = User.findById(decodedUser.id).select(
-    '-refreshToken -emailVerificationToken -emailVerificationTokenExpiry'
+  const user = await User.findOne({ email }).select(
+    '-password -refreshToken -emailVerificationToken -emailVerificationTokenExpiry'
   );
 
   if (!user) throw new ApiError([], 'User not found', 401);
+
+  if (!user.isEmailValid) throw new ApiError([], 'Email is not verified', 401);
+
+  // Here Frontend will redirect user to resend-email-verification route
+  // from there backend will verify email and redirect again to forgot-password route
+
+  const { token, hashedToken, tokenExpiry } = user.generateRandomHashedTokens();
+
+  user.resetPasswordToken = hashedToken;
+  user.resetPasswordTokenExpiry = tokenExpiry;
+
+  await sendEmail({
+    email: user?.email,
+    subject: 'We Received a Request to Reset Your Password',
+    mailgenContent: resetPasswordMailgenContent(
+      user?.username,
+      `${process.env.BASE_URL_WSL}user/reset-password/${token}`
+    ),
+  });
+
+  await user.save({ validateBeforeSave: false });
+
+  res
+    .status(200)
+    .json(
+      new ApiResponse(200, 'Mail Sent for Reset Password', { email: email })
+    );
 });
 
-const resetPassword = asyncHandler(async (req, res) => {});
+const resetPassword = asyncHandler(async (req, res) => {
+  const { resetPasswordToken } = req.params;
+  const { confirm_new_password } = req.body;
+
+  if (!resetPasswordToken) throw new ApiError([], 'Token Not Found', 400);
+
+  const user = await User.findOne({
+    resetPasswordToken,
+    resetPasswordTokenExpiry: { $gt: Date.now() },
+  }).select(
+    '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry'
+  );
+
+  if (!user) throw new ApiError([], 'User Not Found', 400);
+
+  user.password = confirm_new_password;
+  user.resetPasswordToken = undefined
+  user.resetPasswordTokenExpiry = undefined
+
+  await user.save();
+
+  const updatedUser = User.findById(user._id).select(
+    '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry -resetPasswordToken -resetPasswordTokenExpiry'
+  );
+
+  res.status(200).json(new ApiResponse(200, 'Password reset successfully', {username: updatedUser.username, email:updatedUser.email})); 
+});
 
 const resendEmailVerification = asyncHandler(async (req, res) => {
   const { email } = req.body;
@@ -309,7 +365,9 @@ const resendEmailVerification = asyncHandler(async (req, res) => {
       `${process.env.BASE_URL_WSL}user/verify-email/${token}`
     ),
   });
-
+  //   validateModifiedOnly: true ➝ Validates only the fields that were changed, not the entire document
+  //   Use this for partial updates (e.g., profile edits) to improve performance and avoid unnecessary validation
+  //   In this case i dont need this but for future refrence just adding this part
   await user.save({ validateModifiedOnly: true });
 
   return res.status(200).json(

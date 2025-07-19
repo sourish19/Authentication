@@ -59,3 +59,20 @@ export const emailVerificationMailgenContent = (username, verificationUrl) => ({
     outro: "Need help? Just reply to this email. We're here to help.",
   },
 });
+
+export const resetPasswordMailgenContent = (username, resetUrl) => ({
+  body: {
+    name: username,
+    intro: "You recently requested to reset your password.",
+    action: {
+      instructions: "Click the button below to set a new password:",
+      button: {
+        color: '#22BC66',
+        text: 'Reset Password',
+        link: resetUrl,
+      },
+    },
+    outro: "If you did not request a password reset, please ignore this email or contact support if you have concerns.",
+  },
+});
+

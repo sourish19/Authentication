@@ -13,12 +13,12 @@ import {
 } from '../controllers/auth.controller.js';
 import {
   userRegistrationValidation,
-  userPasswordValidation,
+  userChangePasswordValidation,
+  userResetPasswordValidation,
   userEmailValidation,
 } from '../validator/index.validate.js';
 import validate from '../middlewares/userValidate.middleware.js';
 import isLogedIn from '../middlewares/isLogedIn.middleware.js';
-import isEmailVerified from '../middlewares/isEmailVerified.middleware.js';
 
 const router = Router();
 
@@ -29,10 +29,12 @@ router
 router.route('/verify-email/:token').get(verifyEmail);
 router.route('/login').post(userRegistrationValidation(), validate, loginUser);
 router.route('/refresh-access-token').patch(refreshAccessToken);
-router.route('/forgot-password').get(forgotPassword);
 router
-  .route('/reset-password')
-  .patch(isLogedIn, isEmailVerified, resetPassword);
+  .route('/forgot-password')
+  .get(userEmailValidation(), validate, forgotPassword);
+router
+  .route('/reset-password/:resetPasswordToken')
+  .patch(userResetPasswordValidation(), validate, resetPassword);
 router
   .route('/resend-email-verification')
   .patch(userEmailValidation(), validate, resendEmailVerification);
@@ -42,6 +44,11 @@ router.route('/logout').patch(isLogedIn, logoutUser);
 router.route('/profile').get(isLogedIn, userProfile);
 router
   .route('/change-current-password')
-  .patch(isLogedIn, userPasswordValidation(), validate, changeCurrentPassword);
+  .patch(
+    isLogedIn,
+    userChangePasswordValidation(),
+    validate,
+    changeCurrentPassword
+  );
 
 export default router;
