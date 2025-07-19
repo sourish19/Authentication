@@ -319,26 +319,36 @@ const resetPassword = asyncHandler(async (req, res) => {
 
   if (!resetPasswordToken) throw new ApiError([], 'Token Not Found', 400);
 
+  const hashedResetPasswordToken = crypto
+    .createHash('sha256')
+    .update(resetPasswordToken)
+    .digest('hex');
+
   const user = await User.findOne({
-    resetPasswordToken,
+    resetPasswordToken: hashedResetPasswordToken,
     resetPasswordTokenExpiry: { $gt: Date.now() },
   }).select(
     '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry'
   );
 
-  if (!user) throw new ApiError([], 'User Not Found', 400);
+  if (!user) throw new ApiError([], 'Invalid or expired token', 400);
 
   user.password = confirm_new_password;
-  user.resetPasswordToken = undefined
-  user.resetPasswordTokenExpiry = undefined
+  user.resetPasswordToken = undefined;
+  user.resetPasswordTokenExpiry = undefined;
 
   await user.save();
 
-  const updatedUser = User.findById(user._id).select(
+  const updatedUser = await User.findById(user._id).select(
     '-password -refreshToken -isEmailValid -emailVerificationToken -emailVerificationTokenExpiry -resetPasswordToken -resetPasswordTokenExpiry'
   );
 
-  res.status(200).json(new ApiResponse(200, 'Password reset successfully', {username: updatedUser.username, email:updatedUser.email})); 
+  res.status(200).json(
+    new ApiResponse(200, 'Password reset successfully', {
+      username: updatedUser.username,
+      email: updatedUser.email,
+    })
+  );
 });
 
 const resendEmailVerification = asyncHandler(async (req, res) => {
@@ -348,9 +358,10 @@ const resendEmailVerification = asyncHandler(async (req, res) => {
     '-password -refreshToken -resetPasswordToken -resetPasswordTokenExpiry'
   );
 
-  if (!user) throw new ApiError([], 'User not found', 400);
+  if (!user) throw new ApiError([], 'nvalid or expired token', 400);
 
-  if (user.isEmailValid) throw new ApiError([], 'User not found', 400);
+  if (user.isEmailValid)
+    throw new ApiError([], 'User email already verified', 400);
 
   const { token, hashedToken, tokenExpiry } = user.generateRandomHashedTokens();
 
@@ -392,13 +403,4 @@ export {
 
 //https://dev.to/smitterhane/a-meticulous-jwt-api-authentication-guide-youve-been-looking-for-47dg#create-authentication-middleware
 
-/*
-Check user is logedin or not 
-Check if user email is verified or not 
--if verified generate hashed resetPasswordToken & Expiry and save in the DB
-  -send the unHashed resetPasswordToken to user  email as link 
-  -When user click it redirect to the required route & get the token 
-  -verify the token & the let user reset the password 
--if not verified tell user to verify the email first
 
-*/

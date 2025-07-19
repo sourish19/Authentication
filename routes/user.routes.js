@@ -30,14 +30,14 @@ router.route('/verify-email/:token').get(verifyEmail);
 router.route('/login').post(userRegistrationValidation(), validate, loginUser);
 router.route('/refresh-access-token').patch(refreshAccessToken);
 router
+  .route('/resend-email-verification')
+  .patch(userEmailValidation(), validate, resendEmailVerification);
+router
   .route('/forgot-password')
-  .get(userEmailValidation(), validate, forgotPassword);
+  .patch(userEmailValidation(), validate, forgotPassword);
 router
   .route('/reset-password/:resetPasswordToken')
   .patch(userResetPasswordValidation(), validate, resetPassword);
-router
-  .route('/resend-email-verification')
-  .patch(userEmailValidation(), validate, resendEmailVerification);
 
 // Secure Routes
 router.route('/logout').patch(isLogedIn, logoutUser);
