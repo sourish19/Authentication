@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import asyncHandler from '../utils/asyncHandler.utils.js';
 import { ACCESS_TOKEN } from '../utils/constants.utils.js';
 import ApiError from '../utils/apiError.utils.js';
+import User from '../models/auth.model.js';
 
 const isLogedIn = asyncHandler(async (req, res, next) => {
   const accessToken = req.cookies?.accessToken;

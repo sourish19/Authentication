@@ -22,7 +22,7 @@ import isLogedIn from '../middlewares/isLogedIn.middleware.js';
 
 const router = Router();
 
-// Unsecure Routes
+// Unsecured Routes
 router
   .route('/register')
   .post(userRegistrationValidation(), validate, registerUser);
