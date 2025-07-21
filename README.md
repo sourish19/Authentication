@@ -93,7 +93,7 @@ All endpoints are prefixed with `/api/v1`.
 
 ## Project Structure
 ```
-practice_Auth/
+AUTHENTICATION/
 ├── app.js                  # Express app setup
 ├── index.js                # Entry point, DB connect, server start
 ├── controllers/            # Route handlers (auth, healthCheck)
